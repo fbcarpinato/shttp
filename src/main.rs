@@ -1,8 +1,12 @@
 use std::{
     fmt::Result,
-    io::{ Read, Write },
+    io::{Read, Write},
     net::{TcpListener, TcpStream},
 };
+
+use response::HttpResponse;
+
+mod response;
 
 fn main() -> std::io::Result<()> {
     let listener = TcpListener::bind("127.0.0.1:8080")?;
@@ -30,11 +34,9 @@ fn handle_client(mut stream: TcpStream) -> Result {
 
     println!("request: {}", request);
 
-    let html = "<div>hello</div>";
+    let response = HttpResponse::new(response::HttpStatus::Ok);
 
-    let response = format!("HTTP/1.1 200 OK\nContent-Type: text/html\nContent-Length: {}\n\n{}", html.len(), html);
-
-    stream.write(response.as_bytes()).unwrap();
+    stream.write(&response.as_bytes()).unwrap();
 
     Ok(())
 }
