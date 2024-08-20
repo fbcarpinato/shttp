@@ -4,8 +4,10 @@ use std::{
     net::{TcpListener, TcpStream},
 };
 
+use http_status::HttpStatus;
 use response::HttpResponse;
 
+mod http_status;
 mod response;
 
 fn main() -> std::io::Result<()> {
@@ -34,7 +36,9 @@ fn handle_client(mut stream: TcpStream) -> Result {
 
     println!("request: {}", request);
 
-    let response = HttpResponse::new(response::HttpStatus::Ok);
+    let mut response = HttpResponse::html(HttpStatus::Ok, "<div>hello</div>".to_string());
+
+    response.set_header("Custom", "test");
 
     stream.write(&response.as_bytes()).unwrap();
 

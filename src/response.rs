@@ -1,57 +1,68 @@
-use std::fmt;
+use std::collections::HashMap;
 
-pub enum HttpStatus {
-    Ok,
-    NotFound,
-    BadRequest,
-    InternalServerError,
-}
-
-impl HttpStatus {
-    fn code(&self) -> u16 {
-        match self {
-            HttpStatus::Ok => 200,
-            HttpStatus::NotFound => 404,
-            HttpStatus::BadRequest => 400,
-            HttpStatus::InternalServerError => 500,
-        }
-    }
-
-    fn reason_phrase(&self) -> &'static str {
-        match self {
-            HttpStatus::Ok => "OK",
-            HttpStatus::NotFound => "Not Found",
-            HttpStatus::BadRequest => "Bad Request",
-            HttpStatus::InternalServerError => "Internal Server Error",
-        }
-    }
-}
-
-impl fmt::Display for HttpStatus {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} {}", self.code(), self.reason_phrase())
-    }
-}
+use crate::http_status::HttpStatus;
 
 pub struct HttpResponse {
     status: HttpStatus,
+    headers: HashMap<String, String>,
+    body: String
 }
 
 impl HttpResponse {
-    pub fn new(status: HttpStatus) -> Self {
-        HttpResponse { status }
+    pub fn html(status: HttpStatus, body: String) -> Self {
+        let mut headers = HashMap::new();
+
+        headers.insert("Content-Type".to_string(), "text/html".to_string());
+        headers.insert("Content-Length".to_string(), body.len().to_string());
+
+        HttpResponse { status, headers, body }
     }
 
+    pub fn set_header(&mut self,header: &str, value: &str) {
+        self.headers.insert(header.to_string(), value.to_string());
+    }
+
+
     pub fn as_bytes(&self) -> Vec<u8> {
-        let html = "<div>hello</div>";
+        let headers = self.headers.iter()
+            .map(|(key, value)| format!("{}: {}", key, value))
+            .collect::<Vec<String>>()
+            .join("\n");
 
         let response = format!(
-            "HTTP/1.1 {}\nContent-Type: text/html\nContent-Length: {}\n\n{}",
+            "HTTP/1.1 {}\n{}\n\n{}",
             self.status,
-            html.len(),
-            html
+            headers,
+            self.body
         );
 
+        println!("{}", response);
+
         response.into_bytes()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_set_header_new_header() {
+        let mut response = HttpResponse::html(HttpStatus::Ok, "<div>hello</div>".to_string());
+
+        response.set_header("X-Test-Header", "TestValue");
+
+        let response_bytes = response.as_bytes();
+        let response_string = String::from_utf8(response_bytes).expect("Response should be valid UTF-8");
+
+        assert!(response_string.contains("HTTP/1.1 200 OK"));
+
+        assert!(response_string.contains("X-Test-Header: TestValue"));
+
+        assert!(response_string.contains("Content-Type: text/html"));
+
+        assert!(response_string.contains("Content-Length: 16"));
+
+        assert!(response_string.contains("<div>hello</div>"));
     }
 }
