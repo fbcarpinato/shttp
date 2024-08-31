@@ -1,8 +1,8 @@
+use crate::{http_status::HttpStatus, request::Request, response::HttpResponse, router::Router};
 use std::{
     io::{Read, Result, Write},
     net::{TcpListener, TcpStream},
 };
-use crate::{http_status::HttpStatus, request::Request, response::HttpResponse, router::Router};
 
 pub struct HttpServer {
     listener: TcpListener,
@@ -47,12 +47,23 @@ impl HttpServer {
             }
         };
 
-        println!("Received request with method: {}", parsed_request.method());
-        println!("Received request for path: {}", parsed_request.path());
+        let route_handler = self.router.get_route_handler_for_request(&parsed_request);
 
-        let mut response = HttpResponse::html(HttpStatus::Ok, "<div>hello</div>".to_string());
+        let response: HttpResponse = match route_handler {
+            Some(handler) => {
+                let response = handler(&parsed_request);
 
-        response.set_header("custom", "test");
+                response
+            }
+            None => {
+                let mut response =
+                    HttpResponse::html(HttpStatus::Ok, "<div>hello</div>".to_string());
+
+                response.set_header("custom", "test");
+
+                response
+            }
+        };
 
         if let Err(e) = stream.write(&response.as_bytes()) {
             eprintln!("Failed to write response to stream: {}", e);
@@ -60,7 +71,7 @@ impl HttpServer {
         }
     }
 
-    pub fn get(&mut self, path: &str, handler: fn()) {
+    pub fn get<F: Fn(&Request) -> HttpResponse + 'static>(&mut self, path: &str, handler: F) {
         self.router.get(path, handler)
     }
 }
