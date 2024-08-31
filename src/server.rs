@@ -1,4 +1,4 @@
-use crate::{http_status::HttpStatus, request::Request, response::HttpResponse, router::Router};
+use crate::{http_method::HttpMethod, http_status::HttpStatus, request::Request, response::HttpResponse, router::Router};
 use std::{
     io::{Read, Result, Write},
     net::{TcpListener, TcpStream},
@@ -17,6 +17,7 @@ impl HttpServer {
 
         Ok(HttpServer { listener, router })
     }
+
     pub fn start(&self) -> Result<()> {
         for stream in self.listener.incoming() {
             match stream {
@@ -56,10 +57,8 @@ impl HttpServer {
                 response
             }
             None => {
-                let mut response =
-                    HttpResponse::html(HttpStatus::Ok, "<div>hello</div>".to_string());
-
-                response.set_header("custom", "test");
+                let response =
+                    HttpResponse::html(HttpStatus::NotFound, "<span>Not found!</span>".to_string());
 
                 response
             }
@@ -72,6 +71,6 @@ impl HttpServer {
     }
 
     pub fn get<F: Fn(Request) -> HttpResponse + 'static>(&mut self, path: &str, handler: F) {
-        self.router.get(path, handler)
+        self.router.add_route((HttpMethod::GET, path), handler)
     }
 }

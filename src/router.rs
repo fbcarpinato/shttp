@@ -1,8 +1,8 @@
-use crate::{request::Request, response::HttpResponse};
+use crate::{http_method::HttpMethod, request::Request, response::HttpResponse};
 use std::collections::HashMap;
 
 pub struct Router {
-    routes: HashMap<String, Box<dyn Fn(Request) -> HttpResponse>>,
+    routes: HashMap<(HttpMethod, String), Box<dyn Fn(Request) -> HttpResponse>>,
 }
 
 impl Router {
@@ -17,10 +17,13 @@ impl Router {
         request: &Request,
     ) -> Option<&Box<dyn Fn(Request) -> HttpResponse>> {
         let path = request.path();
-        self.routes.get(path)
+        let method = request.method();
+
+        self.routes.get(&(method.clone(), path.to_string()))
     }
 
-    pub fn get<F: Fn(Request) -> HttpResponse + 'static>(&mut self, path: &str, handler: F) {
-        self.routes.insert(path.to_string(), Box::new(handler));
+    pub fn add_route<F: Fn(Request) -> HttpResponse + 'static>(&mut self, matcher: (HttpMethod, &str), handler: F) {
+        self.routes
+            .insert((matcher.0, matcher.1.to_string()), Box::new(handler));
     }
 }

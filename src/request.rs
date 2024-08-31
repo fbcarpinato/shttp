@@ -1,7 +1,8 @@
+use crate::http_method::HttpMethod;
 use std::collections::HashMap;
 
 pub struct Request {
-    method: String,
+    method: HttpMethod,
     path: String,
     version: String,
     headers: HashMap<String, String>,
@@ -23,7 +24,8 @@ impl Request {
         let method = request_parts
             .next()
             .ok_or("Invalid request: Missing method")?
-            .to_string();
+            .parse::<HttpMethod>()
+            .map_err(|_| "Invalid request: HttpMethod not recognized")?;
         let path = request_parts
             .next()
             .ok_or("Invalid request: Missing path")?
@@ -67,7 +69,7 @@ impl Request {
         })
     }
 
-    pub fn method(&self) -> &str {
+    pub fn method(&self) -> &HttpMethod {
         &self.method
     }
 

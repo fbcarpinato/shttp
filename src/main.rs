@@ -2,6 +2,7 @@ use http_status::HttpStatus;
 use response::HttpResponse;
 use server::HttpServer;
 
+mod http_method;
 mod http_status;
 mod request;
 mod response;
@@ -16,6 +17,13 @@ fn main() -> std::io::Result<()> {
             HttpStatus::Ok,
             "<div>this is the index route and not a default handler</div>".to_string(),
         );
+
+        response
+    });
+
+    server.get("/test", |_| {
+        let response =
+            HttpResponse::html(HttpStatus::Ok, "<div>this is the test route".to_string());
 
         response
     });
