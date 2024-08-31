@@ -2,24 +2,26 @@ use std::{
     io::{Read, Result, Write},
     net::{TcpListener, TcpStream},
 };
-
-use crate::{http_status::HttpStatus, response::HttpResponse};
+use crate::{http_status::HttpStatus, request::Request, response::HttpResponse, router::Router};
 
 pub struct HttpServer {
     listener: TcpListener,
+    router: Router,
 }
 
 impl HttpServer {
     pub fn new(server_addr: &str) -> Result<Self> {
         let listener = TcpListener::bind(server_addr)?;
 
-        Ok(HttpServer { listener })
+        let router = Router::new();
+
+        Ok(HttpServer { listener, router })
     }
     pub fn start(&self) -> Result<()> {
         for stream in self.listener.incoming() {
             match stream {
                 Ok(stream) => {
-                    self.handle_client(stream)?;
+                    self.handle_client(stream);
                 }
                 Err(e) => {
                     eprintln!("Failed to establish a connection: {}", e);
@@ -29,21 +31,36 @@ impl HttpServer {
         Ok(())
     }
 
-    fn handle_client(&self, mut stream: TcpStream) -> Result<()> {
+    fn handle_client(&self, mut stream: TcpStream) {
         let mut buffer = [0; 1024];
 
-        stream.read(&mut buffer).unwrap();
+        if let Err(e) = stream.read(&mut buffer) {
+            eprintln!("Failed to read from stream: {}", e);
+            return;
+        }
 
-        let request = String::from_utf8_lossy(&buffer[..]);
+        let parsed_request = match Request::from_buffer(&buffer) {
+            Ok(parsed) => parsed,
+            Err(e) => {
+                eprintln!("Error parsing the request: {}", e);
+                return;
+            }
+        };
 
-        println!("request: {}", request);
+        println!("Received request with method: {}", parsed_request.method());
+        println!("Received request for path: {}", parsed_request.path());
 
         let mut response = HttpResponse::html(HttpStatus::Ok, "<div>hello</div>".to_string());
 
-        response.set_header("Custom", "test");
+        response.set_header("custom", "test");
 
-        stream.write(&response.as_bytes()).unwrap();
+        if let Err(e) = stream.write(&response.as_bytes()) {
+            eprintln!("Failed to write response to stream: {}", e);
+            return;
+        }
+    }
 
-        Ok(())
+    pub fn get(&mut self, path: &str, handler: fn()) {
+        self.router.get(path, handler)
     }
 }
