@@ -51,7 +51,7 @@ impl HttpServer {
 
         let response: HttpResponse = match route_handler {
             Some(handler) => {
-                let response = handler(&parsed_request);
+                let response = handler(parsed_request);
 
                 response
             }
@@ -71,7 +71,7 @@ impl HttpServer {
         }
     }
 
-    pub fn get<F: Fn(&Request) -> HttpResponse + 'static>(&mut self, path: &str, handler: F) {
+    pub fn get<F: Fn(Request) -> HttpResponse + 'static>(&mut self, path: &str, handler: F) {
         self.router.get(path, handler)
     }
 }
