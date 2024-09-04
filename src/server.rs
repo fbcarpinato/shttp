@@ -73,4 +73,20 @@ impl HttpServer {
     pub fn get<F: Fn(Request) -> HttpResponse + 'static>(&mut self, path: &str, handler: F) {
         self.router.add_route((HttpMethod::GET, path), handler)
     }
+
+    pub fn post<F: Fn(Request) -> HttpResponse + 'static>(&mut self, path: &str, handler: F) {
+        self.router.add_route((HttpMethod::POST, path), handler)
+    }
+
+    pub fn put<F: Fn(Request) -> HttpResponse + 'static>(&mut self, path: &str, handler: F) {
+        self.router.add_route((HttpMethod::PUT, path), handler)
+    }
+
+    pub fn patch<F: Fn(Request) -> HttpResponse + 'static>(&mut self, path: &str, handler: F) {
+        self.router.add_route((HttpMethod::PATCH, path), handler)
+    }
+
+    pub fn delete<F: Fn(Request) -> HttpResponse + 'static>(&mut self, path: &str, handler: F) {
+        self.router.add_route((HttpMethod::DELETE, path), handler)
+    }
 }
