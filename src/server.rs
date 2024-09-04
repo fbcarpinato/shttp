@@ -1,92 +1,86 @@
+use std::sync::{Arc, Mutex};
+use tokio::net::TcpListener;
+use tokio::net::TcpStream;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use crate::{http_method::HttpMethod, http_status::HttpStatus, request::Request, response::HttpResponse, router::Router};
-use std::{
-    io::{Read, Result, Write},
-    net::{TcpListener, TcpStream},
-};
 
 pub struct HttpServer {
     listener: TcpListener,
-    router: Router,
+    router: Arc<Mutex<Router>>,
 }
 
 impl HttpServer {
-    pub fn new(server_addr: &str) -> Result<Self> {
-        let listener = TcpListener::bind(server_addr)?;
-
-        let router = Router::new();
+    pub async fn new(server_addr: &str) -> Result<Self, Box<dyn std::error::Error>> {
+        let listener = TcpListener::bind(server_addr).await?;
+        let router = Arc::new(Mutex::new(Router::new()));
 
         Ok(HttpServer { listener, router })
     }
 
-    pub fn start(&self) -> Result<()> {
-        for stream in self.listener.incoming() {
-            match stream {
-                Ok(stream) => {
-                    self.handle_client(stream);
+    pub async fn start(&self) -> Result<(), Box<dyn std::error::Error>> {
+        loop {
+            let (stream, _) = self.listener.accept().await?;
+            let router = Arc::clone(&self.router);
+
+            tokio::spawn(async move {
+                if let Err(e) = handle_client(stream, router).await {
+                    eprintln!("Error handling client: {}", e);
                 }
-                Err(e) => {
-                    eprintln!("Failed to establish a connection: {}", e);
-                }
-            }
-        }
-        Ok(())
-    }
-
-    fn handle_client(&self, mut stream: TcpStream) {
-        let mut buffer = [0; 1024];
-
-        if let Err(e) = stream.read(&mut buffer) {
-            eprintln!("Failed to read from stream: {}", e);
-            return;
-        }
-
-        let parsed_request = match Request::from_buffer(&buffer) {
-            Ok(parsed) => parsed,
-            Err(e) => {
-                eprintln!("Error parsing the request: {}", e);
-                return;
-            }
-        };
-
-        let route_handler = self.router.get_route_handler_for_request(&parsed_request);
-
-        let response: HttpResponse = match route_handler {
-            Some(handler) => {
-                let response = handler(parsed_request);
-
-                response
-            }
-            None => {
-                let response =
-                    HttpResponse::html(HttpStatus::NotFound, "<span>Not found!</span>".to_string());
-
-                response
-            }
-        };
-
-        if let Err(e) = stream.write(&response.as_bytes()) {
-            eprintln!("Failed to write response to stream: {}", e);
-            return;
+            });
         }
     }
 
-    pub fn get<F: Fn(Request) -> HttpResponse + 'static>(&mut self, path: &str, handler: F) {
-        self.router.add_route((HttpMethod::GET, path), handler)
+    pub fn get<F: Fn(Request) -> HttpResponse + Send + 'static>(&self, path: &str, handler: F) {
+        let mut router = self.router.lock().unwrap();
+        router.add_route((HttpMethod::GET, path), handler);
     }
 
-    pub fn post<F: Fn(Request) -> HttpResponse + 'static>(&mut self, path: &str, handler: F) {
-        self.router.add_route((HttpMethod::POST, path), handler)
+    pub fn post<F: Fn(Request) -> HttpResponse + Send + 'static>(&self, path: &str, handler: F) {
+        let mut router = self.router.lock().unwrap();
+        router.add_route((HttpMethod::POST, path), handler);
     }
 
-    pub fn put<F: Fn(Request) -> HttpResponse + 'static>(&mut self, path: &str, handler: F) {
-        self.router.add_route((HttpMethod::PUT, path), handler)
+    pub fn put<F: Fn(Request) -> HttpResponse + Send + 'static>(&self, path: &str, handler: F) {
+        let mut router = self.router.lock().unwrap();
+        router.add_route((HttpMethod::PUT, path), handler);
     }
 
-    pub fn patch<F: Fn(Request) -> HttpResponse + 'static>(&mut self, path: &str, handler: F) {
-        self.router.add_route((HttpMethod::PATCH, path), handler)
+    pub fn patch<F: Fn(Request) -> HttpResponse + Send + 'static>(&self, path: &str, handler: F) {
+        let mut router = self.router.lock().unwrap();
+        router.add_route((HttpMethod::PATCH, path), handler);
     }
 
-    pub fn delete<F: Fn(Request) -> HttpResponse + 'static>(&mut self, path: &str, handler: F) {
-        self.router.add_route((HttpMethod::DELETE, path), handler)
+    pub fn delete<F: Fn(Request) -> HttpResponse + Send + 'static>(&self, path: &str, handler: F) {
+        let mut router = self.router.lock().unwrap();
+        router.add_route((HttpMethod::DELETE, path), handler);
     }
+}
+
+async fn handle_client(mut stream: TcpStream, router: Arc<Mutex<Router>>) -> Result<(), Box<dyn std::error::Error>> {
+    let mut buffer = [0; 1024];
+
+    stream.read(&mut buffer).await?;
+
+let parsed_request = match Request::from_buffer(&buffer) {
+        Ok(parsed) => parsed,
+        Err(e) => {
+            eprintln!("Error parsing the request: {}", e);
+            let response = HttpResponse::html(HttpStatus::BadRequest, "<span>Bad request!</span>".to_string());
+            stream.write_all(&response.as_bytes()).await?;
+            return Err(Box::new(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Error parsing the request")));
+        }
+    };
+
+    let response: HttpResponse = {
+        let router = router.lock().unwrap();
+
+        match router.get_route_handler_for_request(&parsed_request) {
+            Some(handler) => handler(parsed_request),
+            None => (router.default_handler())(parsed_request),
+        }
+    };
+
+    stream.write_all(&response.as_bytes()).await?;
+
+    Ok(())
 }
