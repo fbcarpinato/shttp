@@ -1,5 +1,7 @@
+use crate::{
+    http_method::HttpMethod, http_status::HttpStatus, request::Request, response::HttpResponse,
+};
 use std::collections::HashMap;
-use crate::{http_method::HttpMethod, http_status::HttpStatus, request::Request, response::HttpResponse};
 
 pub struct Router {
     routes: HashMap<(HttpMethod, String), Box<dyn Fn(Request) -> HttpResponse + Send>>,
@@ -22,17 +24,20 @@ impl Router {
         self.routes.get(&(method.clone(), path.to_string()))
     }
 
-
-    pub fn default_handler(
-        &self,
-    ) -> Box<dyn Fn(Request) -> HttpResponse + Send> {
+    pub fn default_handler(&self) -> Box<dyn Fn(Request) -> HttpResponse + Send> {
         Box::new(|_request: Request| {
-            // Default response for any route
-            HttpResponse::html(HttpStatus::NotFound, "<span>Default 404 Not Found</span>".to_string())
+            HttpResponse::html(
+                HttpStatus::NotFound,
+                "<span>Default 404 Not Found</span>".to_string(),
+            )
         })
     }
 
-    pub fn add_route<F: Fn(Request) -> HttpResponse + Send + 'static>(&mut self, matcher: (HttpMethod, &str), handler: F) {
-        self.routes.insert((matcher.0, matcher.1.to_string()), Box::new(handler));
+    pub fn add_route<F>(&mut self, matcher: (HttpMethod, &str), handler: F)
+    where
+        F: Fn(Request) -> HttpResponse + Send + 'static,
+    {
+        self.routes
+            .insert((matcher.0, matcher.1.to_string()), Box::new(handler));
     }
 }

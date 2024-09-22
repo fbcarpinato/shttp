@@ -3,5 +3,13 @@ name = "shttp"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "shttp"
+path = "src/lib/lib.rs"
+
+[[bin]]
+name = "shttp_example"
+path = "src/main.rs"
+
 [dependencies]
 tokio = { version = "1.40.0", features = ["full"] }
